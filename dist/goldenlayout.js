@@ -4334,15 +4334,89 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	 *
 	 * @returns {lm.controls.Splitter}
 	 */
-	_createSplitter: function( index ) {
-		var splitter;
-		splitter = new lm.controls.Splitter( this._isColumn, this._splitterSize, this._splitterGrabSize );
-		splitter.on( 'drag', lm.utils.fnBind( this._onSplitterDrag, this, [ splitter ] ), this );
-		splitter.on( 'dragStop', lm.utils.fnBind( this._onSplitterDragStop, this, [ splitter ] ), this );
-		splitter.on( 'dragStart', lm.utils.fnBind( this._onSplitterDragStart, this, [ splitter ] ), this );
+	 _createSplitter: function( index ) {
+ 		var splitter;
+ 		splitter = new lm.controls.Splitter( this._isColumn, this._splitterSize, this._splitterGrabSize, this.layoutManager.config.settings.enableSplitterToggleButtons );
+ 		splitter.on( 'drag', lm.utils.fnBind( this._onSplitterDrag, this, [ splitter ] ), this );
+ 		splitter.on( 'dragStop', lm.utils.fnBind( this._onSplitterDragStop, this, [ splitter ] ), this );
+ 		splitter.on( 'dragStart', lm.utils.fnBind( this._onSplitterDragStart, this, [ splitter ] ), this );
 
-		this._splitter.splice( index, 0, splitter );
-		return splitter;
+ 		var toggleButton = splitter.element.find( '.lm_toggle_button' );
+
+ 		if ( toggleButton ) {
+ 			splitter._toggleButton = toggleButton;
+
+ 			toggleButton.changeState = function( state ) {
+ 				if ( state === 'open' ) {
+ 					if ( this._isColumn ) {
+ 						toggleButton.removeClass( 'lm_toggle_button_up' ).addClass( 'lm_toggle_button_down' );
+ 					}  else {
+ 						toggleButton.removeClass ('lm_toggle_button_right' ).addClass( 'lm_toggle_button_left' );
+ 					}
+ 				} else {
+ 					if ( this._isColumn ) {
+ 						toggleButton.removeClass( 'lm_toggle_button_down' ).addClass( 'lm_toggle_button_up' );
+ 					}  else {
+ 						toggleButton.removeClass ('lm_toggle_button_left' ).addClass( 'lm_toggle_button_right' );
+ 					}
+ 				}
+ 			}.bind( this );
+
+ 			toggleButton.on( 'click', function() {
+ 				var items = this._getItemsForSplitter( splitter );
+ 				var container = this._findContainer( this._isColumn ? items.after : items.before );
+
+ 				console.log('toggling, previous position', this._splitterPreviousPosition)
+
+
+ 				if ( container ) {
+ 					if ( this._isColumn ) {
+ 						if ( this._splitterPreviousPosition > 0 ) {
+ 							console.log('%cOPEN column, setting width, height', 'color: green', items.after.element.width(), this._splitterPreviousPosition);
+ 							container.setSize( items.after.element.width(), this._splitterPreviousPosition );
+ 							this._splitterPreviousPosition = 0;
+ 							toggleButton.changeState( 'open' );
+ 						} else {
+ 							console.log('%cCLOSE column, setting width, height', 'color: red', items.after.element.width(), 1);
+ 							this._splitterPreviousPosition = items.after.element.height();
+ 							container.setSize( items.after.element.width(), 1 );
+ 							toggleButton.changeState( 'closed' );
+ 						}
+ 					} else {
+ 						if ( this._splitterPreviousPosition > 0 ) {
+ 							console.log('%cOPEN row, setting width, height', 'color: green', this._splitterPreviousPosition, items.before.element.height());
+ 							container.setSize( this._splitterPreviousPosition, items.before.element.height() );
+ 							this._splitterPreviousPosition = 0;
+ 							toggleButton.changeState( 'open' );
+ 						} else {
+ 							console.log('%cCLOSE column, setting width, height', 'color: red', 1, items.before.element.height());
+ 							this._splitterPreviousPosition = items.before.element.width();
+ 							container.setSize( 1, items.before.element.height() );
+ 							toggleButton.changeState( 'closed' );
+ 						}
+ 					}
+ 				}
+ 			}.bind( this ) );
+ 		}
+
+ 		this._splitter.splice( index, 0, splitter );
+ 		return splitter;
+ 	},
+
+	_findContainer: function( root ) {
+		if ( root.container ) {
+			return root.container;
+		} else if ( root.contentItems ) {
+			var container;
+			for ( var i = 0; i < root.contentItems.length; i++ ) {
+				container = this._findContainer( root.contentItems[ i ] );
+				if ( container ) {
+					break;
+				}
+			}
+
+			return container;
+		}
 	},
 
 	/**
