@@ -1515,6 +1515,11 @@ lm.utils.copy( lm.LayoutManager.prototype, {
 	}
 })();
 
+lm.config.itemDefaultConfig = {
+	isClosable: true,
+	reorderEnabled: true,
+	title: ''
+};
 lm.config.defaultConfig = {
 	openPopouts: [],
 	settings: {
@@ -1552,11 +1557,6 @@ lm.config.defaultConfig = {
 	}
 };
 
-lm.config.itemDefaultConfig = {
-	isClosable: true,
-	reorderEnabled: true,
-	title: ''
-};
 lm.container.ItemContainer = function( config, parent, layoutManager ) {
 	lm.utils.EventEmitter.call( this );
 
@@ -1747,16 +1747,6 @@ lm.utils.copy( lm.container.ItemContainer.prototype, {
 		}
 	}
 } );
-
-lm.errors.ConfigurationError = function( message, node ) {
-	Error.call( this );
-
-	this.name = 'Configuration Error';
-	this.message = message;
-	this.node = node;
-};
-
-lm.errors.ConfigurationError.prototype = new Error();
 
 /**
  * Pops a content item out into a new browser window.
@@ -3025,6 +3015,16 @@ lm.utils.copy( lm.controls.TransitionIndicator.prototype, {
 		};
 	}
 } );
+lm.errors.ConfigurationError = function( message, node ) {
+	Error.call( this );
+
+	this.name = 'Configuration Error';
+	this.message = message;
+	this.node = node;
+};
+
+lm.errors.ConfigurationError.prototype = new Error();
+
 /**
  * This is the baseclass that all content items inherit from.
  * Most methods provide a subset of what the sub-classes do.
@@ -4030,17 +4030,27 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 			totalWidth = this.element.width(),
 			totalHeight = this.element.height(),
 			totalAssigned = 0,
+			totalAssignedHeight = 0,
+			totalAssignedWidth = 0,
 			additionalPixel,
+			additionalPixelHeight,
+			additionalPixelWidth,
 			itemSize,
-			itemSizes = [];
+			itemSizeHeight,
+			itemSizeWidth,
+			itemSizes = [],
+			itemSizesHeight = [],
+			itemSizesWidth = [];
 
-		if( this._isColumn ) {
 			totalHeight -= totalSplitterSize;
-		} else {
 			totalWidth -= totalSplitterSize;
-		}
 
 		for( i = 0; i < this.contentItems.length; i++ ) {
+			itemSizeHeight = Math.floor( totalHeight * ( ( this.contentItems[ i ].config.height || 0) / 100 ) );
+			itemSizeHeight = itemSizeHeight || 0;
+			itemSizeWidth = Math.floor( totalWidth * ( ( this.contentItems[ i ].config.width || 0 ) / 100) );
+			itemSizeWidth = itemSizeWidth || 0;
+
 			if( this._isColumn ) {
 				itemSize = Math.floor( totalHeight * ( this.contentItems[ i ].config.height / 100 ) );
 			} else {
@@ -4048,14 +4058,27 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 			}
 
 			totalAssigned += itemSize;
+			totalAssignedHeight += itemSizeHeight;
+			totalAssignedWidth += itemSizeWidth;
 			itemSizes.push( itemSize );
+			itemSizesHeight.push( itemSizeHeight );
+			itemSizesWidth.push( itemSizeWidth );
 		}
 
+		totalAssignedHeight = totalAssignedHeight || 0;
+		totalAssignedWidth = totalAssignedWidth || 0;
+
 		additionalPixel = Math.floor( (this._isColumn ? totalHeight : totalWidth) - totalAssigned );
+		additionalPixelHeight = Math.floor( totalHeight - totalAssignedHeight );
+		additionalPixelWidth = Math.floor( totalWidth - totalAssignedWidth );
 
 		return {
 			itemSizes: itemSizes,
+			itemSizesHeight: itemSizesHeight,
+			itemSizesWidth: itemSizesWidth,
 			additionalPixel: additionalPixel,
+			additionalPixelHeight: additionalPixelHeight,
+			additionalPixelWidth: additionalPixelWidth,
 			totalWidth: totalWidth,
 			totalHeight: totalHeight
 		};
@@ -4083,7 +4106,6 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	 * @returns {void}
 	 */
 	_calculateRelativeSizes: function() {
-
 		var i,
 			total = 0,
 			itemsWithoutSetDimension = [],
@@ -4102,6 +4124,7 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		 */
 		if( Math.round( total ) === 100 ) {
 			this._respectMinItemWidth();
+			this._respectMinItemHeight();
 			return;
 		}
 
@@ -4113,6 +4136,7 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 				itemsWithoutSetDimension[ i ].config[ dimension ] = ( 100 - total ) / itemsWithoutSetDimension.length;
 			}
 			this._respectMinItemWidth();
+			this._respectMinItemHeight();
 			return;
 		}
 
@@ -4137,85 +4161,145 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		}
 
 		this._respectMinItemWidth();
+		this._respectMinItemHeight();
+	},
+
+	_getMinItemSize: function( dimension ) {
+		var configSettingsDimension = dimension === 'height' ? 'minItemHeight' : 'minItemWidth',
+		    configItemDimension = dimension === 'height' ? 'minItemHeight' : 'minItemWidth',
+				minItemSize = this.layoutManager.config.dimensions ? (this.layoutManager.config.dimensions[ configSettingsDimension ] || 0) : 0;
+
+		var contentItemsMinItemSize = this.config[ configItemDimension ] || 0;
+
+		if ( this.contentItems.length > 0 ) {
+			contentItemsMinItemSize = this._findMinSizeOfItems( this.contentItems, dimension );
+		}
+
+		return Math.max( minItemSize, contentItemsMinItemSize );
+	},
+
+	_findMinSizeOfItems: function( contentItems, dimension ) {
+		var minItemSize = 0,
+				contentItem = null,
+				configDimension = dimension === 'height' ? 'minHeight' : 'minWidth';
+
+		for ( var i = 0; i < contentItems.length; i++ ) {
+			contentItem = contentItems[ i ];
+
+			minItemSize = Math.max(
+				minItemSize,
+				contentItem.config ? ( contentItem.config[ configDimension ] || 0 ) : 0
+			);
+
+			if ( contentItem.contentItems ) {
+				minItemSize = Math.max(
+					minItemSize,
+					this._findMinSizeOfItems( contentItem.contentItems, dimension )
+				);
+			}
+		}
+
+		return minItemSize;
+	},
+
+	_respectMinItemHeight: function() {
+		this._respectMinItemSize( 'height' );
+	},
+
+	_respectMinItemWidth: function() {
+		this._respectMinItemSize( 'width' );
 	},
 
 	/**
 	 * Adjusts the column widths to respect the dimensions minItemWidth if set.
-	 * @returns {}
+	 *
+	 * @private
+	 * @param   {String} dimension The dimension to respect size for.  height or width.
+	 * @returns {void}
 	 */
-	_respectMinItemWidth: function() {
-		var minItemWidth = this.layoutManager.config.dimensions ? (this.layoutManager.config.dimensions.minItemWidth || 0) : 0,
-			sizeData = null,
-			entriesOverMin = [],
-			totalOverMin = 0,
-			totalUnderMin = 0,
-			remainingWidth = 0,
-			itemSize = 0,
-			contentItem = null,
-			reducePercent,
-			reducedWidth,
-			allEntries = [],
-			entry;
+	_respectMinItemSize: function( dimension ) {
+	  var minItemSize = this._getMinItemSize( dimension ),
+	    sizeData = null,
+	    entriesOverMin = [],
+	    totalOverMin = 0,
+	    totalUnderMin = 0,
+	    remainingSize = 0,
+	    itemSize = 0,
+	    contentItem = null,
+	    reducePercent,
+	    reducedSize,
+	    allEntries = [],
+	    entry;
 
-		if( this._isColumn || !minItemWidth || this.contentItems.length <= 1 ) {
-			return;
-		}
+		// nothing within this row/column has a minimum size for the specified
+		// dimension so there is no need to respect size
+	  if( !minItemSize || this.contentItems.length < 1 ) {
+	    return;
+	  }
 
-		sizeData = this._calculateAbsoluteSizes();
+	  sizeData = this._calculateAbsoluteSizes();
 
-		/**
-		 * Figure out how much we are under the min item size total and how much room we have to use.
-		 */
-		for( var i = 0; i < this.contentItems.length; i++ ) {
+	  /**
+	   * Figure out how much we are under the min item size total and how much room we have to use.
+	   */
+	  for( var i = 0; i < this.contentItems.length; i++ ) {
+	    contentItem = this.contentItems[ i ];
+	    itemSize = dimension === 'height' ?
+				sizeData.itemSizesHeight[ i ] :
+				sizeData.itemSizesWidth[ i ];
 
-			contentItem = this.contentItems[ i ];
-			itemSize = sizeData.itemSizes[ i ];
+			var entryMinSize = this._findMinSizeOfItems(contentItem.contentItems, dimension);
 
-			if( itemSize < minItemWidth ) {
-				totalUnderMin += minItemWidth - itemSize;
-				entry = { width: minItemWidth };
+			if( itemSize < entryMinSize ) {
+	      totalUnderMin += entryMinSize - itemSize;
+	      entry = { size: entryMinSize };
+	    }
+	    else {
+	      totalOverMin += itemSize - entryMinSize;
+	      entry = { size: itemSize };
+	      entriesOverMin.push( entry );
+	    }
 
-			}
-			else {
-				totalOverMin += itemSize - minItemWidth;
-				entry = { width: itemSize };
-				entriesOverMin.push( entry );
-			}
+			entry.minSize = entryMinSize;
 
-			allEntries.push( entry );
-		}
+	    allEntries.push( entry );
+	  }
 
-		/**
-		 * If there is nothing under min, or there is not enough over to make up the difference, do nothing.
-		 */
+	  /**
+	   * If there is nothing under min, or there is not enough over to make up the difference, do nothing.
+	   */
 		if( totalUnderMin === 0 || totalUnderMin > totalOverMin ) {
-			return;
+	    return;
+	  }
+
+	  /**
+	   * Evenly reduce all items that are over the min item size to make up the difference.
+	   */
+	  reducePercent = totalUnderMin / totalOverMin;
+	  remainingSize = totalUnderMin;
+	  for( i = 0; i < entriesOverMin.length; i++ ) {
+	    entry = entriesOverMin[ i ];
+	    reducedSize = Math.round( ( entry.size - entry.minSize ) * reducePercent );
+	    remainingSize -= reducedSize;
+	    entry.size -= reducedSize;
 		}
 
-		/**
-		 * Evenly reduce all columns that are over the min item width to make up the difference.
-		 */
-		reducePercent = totalUnderMin / totalOverMin;
-		remainingWidth = totalUnderMin;
-		for( i = 0; i < entriesOverMin.length; i++ ) {
-			entry = entriesOverMin[ i ];
-			reducedWidth = Math.round( ( entry.width - minItemWidth ) * reducePercent );
-			remainingWidth -= reducedWidth;
-			entry.width -= reducedWidth;
-		}
+	  /**
+	   * Take anything remaining from the last item.
+	   */
+	  if( remainingSize !== 0 ) {
+			allEntries[ allEntries.length - 1 ].size -= remainingSize;
+	  }
 
-		/**
-		 * Take anything remaining from the last item.
-		 */
-		if( remainingWidth !== 0 ) {
-			allEntries[ allEntries.length - 1 ].width -= remainingWidth;
-		}
-
-		/**
-		 * Set every items size relative to 100 relative to its size to total
-		 */
-		for( i = 0; i < this.contentItems.length; i++ ) {
-			this.contentItems[ i ].config.width = (allEntries[ i ].width / sizeData.totalWidth) * 100;
+	  /**
+	   * Set every items size relative to 100 relative to its size to total
+	   */
+	  for( i = 0; i < this.contentItems.length; i++ ) {
+			if ( dimension === 'height' ) {
+				this.contentItems[ i ].config.height = ( allEntries[ i ].size / sizeData.totalHeight ) * 100;
+			} else {
+				this.contentItems[ i ].config.width = (allEntries[ i ].size / sizeData.totalWidth) * 100;
+			}
 		}
 	},
 
@@ -4235,6 +4319,7 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		splitter.on( 'drag', lm.utils.fnBind( this._onSplitterDrag, this, [ splitter ] ), this );
 		splitter.on( 'dragStop', lm.utils.fnBind( this._onSplitterDragStop, this, [ splitter ] ), this );
 		splitter.on( 'dragStart', lm.utils.fnBind( this._onSplitterDragStart, this, [ splitter ] ), this );
+
 		this._splitter.splice( index, 0, splitter );
 		return splitter;
 	},
@@ -4326,7 +4411,6 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	 * @returns {void}
 	 */
 	_onSplitterDragStop: function( splitter ) {
-
 		var items = this._getItemsForSplitter( splitter ),
 			sizeBefore = items.before.element[ this._dimension ](),
 			sizeAfter = items.after.element[ this._dimension ](),
