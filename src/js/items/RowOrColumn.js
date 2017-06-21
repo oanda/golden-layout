@@ -529,34 +529,39 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 
  			toggleButton.on( 'click', function() {
  				var items = this._getItemsForSplitter( splitter );
- 				var container = this._findContainer( this._isColumn ? items.after : items.before );
+ 				var container = this._findFirstContainer( this._isColumn ? items.after : items.before );
 
- 				console.log('toggling, previous position', this._splitterPreviousPosition)
-
+				console.log('%cToggling! previous position?', 'color: pink', this._splitterPreviousPosition)
 
  				if ( container ) {
  					if ( this._isColumn ) {
  						if ( this._splitterPreviousPosition > 0 ) {
- 							console.log('%cOPEN column, setting width, height', 'color: green', items.after.element.width(), this._splitterPreviousPosition);
- 							container.setSize( items.after.element.width(), this._splitterPreviousPosition );
+ 							console.log('%cOPEN %ccolumn, setting width %i, height %i', 'color: green', 'color: lightblue', items.after.element.width(), this._splitterPreviousPosition);
+							// container.show();
+ 							this._setSize(items.after, items.after.element.width(), this._splitterPreviousPosition );
  							this._splitterPreviousPosition = 0;
  							toggleButton.changeState( 'open' );
  						} else {
- 							console.log('%cCLOSE column, setting width, height', 'color: red', items.after.element.width(), 1);
+ 							console.log('%cCLOSE %ccolumn, setting width %i, height %i', 'color: red', 'color: lightblue', items.after.element.width(), 1);
  							this._splitterPreviousPosition = items.after.element.height();
- 							container.setSize( items.after.element.width(), 1 );
+							console.log('  setting previousPosition (height)', this._splitterPreviousPosition)
+							// container.hide()
+ 							this._setSize(items.after, items.after.element.width(), 1 );
  							toggleButton.changeState( 'closed' );
  						}
  					} else {
  						if ( this._splitterPreviousPosition > 0 ) {
- 							console.log('%cOPEN row, setting width, height', 'color: green', this._splitterPreviousPosition, items.before.element.height());
- 							container.setSize( this._splitterPreviousPosition, items.before.element.height() );
+ 							console.log('%cOPEN %crow, setting width %i, height %i', 'color: green', 'color: lightblue', this._splitterPreviousPosition, items.before.element.height());
+							// container.show()
+ 							this._setSize(items.before, this._splitterPreviousPosition, items.before.element.height() );
  							this._splitterPreviousPosition = 0;
  							toggleButton.changeState( 'open' );
  						} else {
- 							console.log('%cCLOSE column, setting width, height', 'color: red', 1, items.before.element.height());
+ 							console.log('%cCLOSE %crow, setting width %i, height %i', 'color: red', 'color: lightblue', 1, items.before.element.height());
  							this._splitterPreviousPosition = items.before.element.width();
- 							container.setSize( 1, items.before.element.height() );
+							console.log('  setting previousPosition (width)', this._splitterPreviousPosition)
+							// container.hide();
+ 							this._setSize(items.before, 1, items.before.element.height() );
  							toggleButton.changeState( 'closed' );
  						}
  					}
@@ -568,13 +573,23 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
  		return splitter;
  	},
 
-	_findContainer: function( root ) {
+	_modifyConfigOfChildren: function( root, action ) {
+		console.log('root', root)
+		for( var i = 0 ; i < root.contentItems.length; i++ ) {
+			action( root.contentItems[ i ] );
+			if ( root.contentItems[ i ].contentItems.length ) {
+				this._modifyConfigOfChildren( root.contentItems[ i ], action );
+			}
+		}
+	},
+
+	_findFirstContainer: function( root ) {
 		if ( root.container ) {
 			return root.container;
 		} else if ( root.contentItems ) {
 			var container;
 			for ( var i = 0; i < root.contentItems.length; i++ ) {
-				container = this._findContainer( root.contentItems[ i ] );
+				container = this._findFirstContainer( root.contentItems[ i ] );
 				if ( container ) {
 					break;
 				}
@@ -582,6 +597,103 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 
 			return container;
 		}
+	},
+
+	/**
+	 * Used for setting the size of a child of this row/column specifically
+	 *
+	 * @param {Object} target Child to set size of
+	 * @param {Number} width  The new width in pixel
+	 * @param {Number} height The new height in pixel
+	 *
+	 * @returns {Boolean} resizeSuccesful
+	 */
+	_setSize: function( target, width, height ) {
+		var rowOrColumn = this,
+			parentRowOrColumn,
+			currentSize,
+			totalPixel,
+			percentage,
+			direction,
+			newSize,
+			delta,
+			i;
+
+		direction = rowOrColumn.isColumn ? "height" : "width";
+		newSize = direction === "height" ? height : width;
+
+		parentRowOrColumn = this.parent;
+		while( !parentRowOrColumn.isColumn && !parentRowOrColumn.isRow ) {
+			parentRowOrColumn = parentRowOrColumn.parent;
+
+			/**
+			 * No parent row or column has been found
+			 */
+			if( !parentRowOrColumn || parentRowOrColumn.isRoot ) {
+				parentRowOrColumn = this;
+				break;
+			}
+		}
+
+		// currentSize = this.element[ direction ]();
+		currentSize = this.contentItems[0].element[ direction ]();
+		parentSize = parentRowOrColumn.element[ direction ]();
+		newPercentSize = newSize / parentSize;
+		currentPercentSize = currentSize / parentSize;
+		delta = currentPercentSize - newPercentSize;
+
+		console.log('%csetSize variables', 'color: lightgreen');
+		console.log('  direction', direction)
+		console.log('  newSize', newSize)
+		console.log('  currentSize', currentSize)
+		console.log('  currentSize?', this.contentItems[0].element[ direction ]())
+		console.log('  parentRowOrColumn', parentRowOrColumn.element[ direction ]())
+		console.log('  isColumn', rowOrColumn.isColumn)
+		console.log('  parentSize', parentSize)
+		console.log('  newPercentSize', newPercentSize)
+		console.log('  delta', delta)
+
+		// for rows only modify the space of the item after the current one
+		// for columns only modify the space of the item before the current one
+
+		// Step 1: modify the config of the target item
+		target.config[ direction ] = newPercentSize * 100;
+
+		// Step 2: find the correct item to add/remove space to to make up for the new size
+		//				 the item to add/remove from will be different based on if this is
+		//			   a column or a row
+		//				row: the last sibling of the row
+		//			  column: the first sibling of the column
+		var deltaItem;
+		for( i = 0; i < rowOrColumn.contentItems.length; i++ ) {
+			if( rowOrColumn.contentItems[ i ] === target ) {
+				deltaItem = rowOrColumn.contentItems[ this.isColumn ? 0 : rowOrColumn.contentItems.length - 1 ];
+				break;
+			}
+		}
+
+		if ( deltaItem ) {
+			console.log('  deltaItem', deltaItem)
+			deltaItem.config[ direction ] += delta * 100;
+		} else {
+			return false;
+		}
+
+		// Step 3: reset the min sizes of all items inside the target item
+		//				 note: respect the toggle ID when resetting min sizes
+		this._modifyConfigOfChildren( target, function( item ) {
+			var minDirection = direction === 'height' ? 'minHeight' : 'minWidth';
+			if ( item.config[ minDirection ] ) {
+				item.config[ minDirection + 'Original' ] = item.config[ minDirection ];
+				item.config[ minDirection ] = 0;
+			} else {
+				item.config[ minDirection ] = item.config[ minDirection + 'Original' ];
+			}
+		});
+
+		rowOrColumn.callDownwards( 'setSize' );
+
+		return true;
 	},
 
 	/**
