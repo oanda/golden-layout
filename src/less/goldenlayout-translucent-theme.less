@@ -40,14 +40,27 @@
 
 // Separator line (handle to change pane size)
 .lm_splitter {
-  background: @color0;
-  opacity: 0.001;
-  transition: opacity 200ms ease;
+  background-color: @color0;
+  opacity: 0.2;
+  transition: background 200ms ease;
 
   &:hover, // When hovered by mouse...
   &.lm_dragging {
-    background: @color0;
-    opacity: 0.4;
+    background-color: @color0;
+    opacity: 0.5;
+  }
+
+  .lm_toggle_button {
+    background-color: @color1;
+    opacity: 0.9;
+
+    &:hover {
+      background-color: @color2;
+    }
+
+    .lm_toggle_arrow {
+      border-color: @color0;
+    }
   }
 }
 
@@ -128,7 +141,7 @@
 // Dropdown arrow for additional tabs when too many to be displayed
 // (Used in other Themes but actually not here)
 /*
-.lm_header .lm_controls .lm_tabdropdown:before 
+.lm_header .lm_controls .lm_tabdropdown:before
 {
   color:@color1;
 }*/
@@ -167,18 +180,18 @@
 // If a specific Pane is maximized
 // (Used in other Themes but actually not here)
 /*
-.lm_maximised 
+.lm_maximised
 {
     // Pane Header (container of Tabs for each pane) can have different style when is Maximized
-    .lm_header 
+    .lm_header
     {
       background-color:@color4;
     }
-  
+
     // Pane controls are different in Maximized Mode, especially the old Icon "Maximise" that now has a different meaning, so "Minimize" (even if CSS Class did not change)
-    .lm_controls 
+    .lm_controls
     {
-        .lm_maximise 
+        .lm_maximise
         {
           background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAAJklEQVR4nGP8//8/AyHARFDFUFbEwsDAwMDIyIgzHP7//89IlEkApSkHEScJTKoAAAAASUVORK5CYII=);
         }
@@ -188,7 +201,7 @@
 
 // (Used in other Themes but actually not here)
 /*
-.lm_transition_indicator 
+.lm_transition_indicator
 {
 	background-color:@color1;
 	border:1px dashed @color5;

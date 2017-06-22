@@ -508,5 +508,13 @@ lm.utils.copy( lm.items.Stack.prototype, {
 		var highlightArea = this._contentAreaDimensions[ segment ].highlightArea;
 		this.layoutManager.dropTargetIndicator.highlightArea( highlightArea );
 		this._dropSegment = segment;
+	},
+
+	hide: function() {
+		this.element.get( 0 ).style = "visibility: hidden";
+	},
+
+	show: function() {
+		this.element.get( 0 ).style = "visibility: visible";
 	}
 } );

@@ -11,6 +11,7 @@
 @color8: #452500; // Appears 1 time
 @color9: #555555; // Appears 1 time
 @color10: #ffffff; // Appears 2 time
+@color11: #333333; // Appears 2 time
 
 // ".lm_dragging" is applied to BODY tag during Drag and is also directly applied to the root of the object being dragged
 
@@ -46,14 +47,25 @@
 
 // Separator line (handle to change pane size)
 .lm_splitter {
-  background: @color0;
-  opacity: 0.001;
-  transition: opacity 200ms ease;
+  background-color: @color0;
+  transition: background 200ms ease;
 
   &:hover, // When hovered by mouse...
   &.lm_dragging {
-    background: @color5;
+    background-color: @color5;
     opacity: 1;
+  }
+
+  .lm_toggle_button {
+    background-color: @color10;
+
+    &:hover {
+      background-color: @color9;
+    }
+
+    .lm_toggle_arrow {
+      border-color: @color1;
+    }
   }
 }
 

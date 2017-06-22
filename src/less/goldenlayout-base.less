@@ -60,21 +60,86 @@
   }
 
   &.lm_vertical {
+    z-index: 25;
+
     .lm_drag_handle {
       width: @width0;
-      position: absolute;
       cursor: ns-resize;
+      position: absolute;
     }
   }
 
   &.lm_horizontal {
     float: left;
     height: @height0;
+    z-index: 25;
 
     .lm_drag_handle {
       height: @height0;
-      position: absolute;
       cursor: ew-resize;
+      position: absolute;
+    }
+  }
+
+  .lm_toggle_button {
+    cursor: pointer;
+    display: inline-block;
+    line-height: 0;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+    text-align: center;
+    width: 50px;
+    z-index: 30;
+
+    .lm_toggle_arrow {
+      border-color: #333333;
+      display: inline-block;
+      height: 0;
+      width: 0;
+    }
+
+    &.lm_toggle_button_left, &.lm_toggle_button_right {
+      height: 50px;
+      left: 0;
+      position: absolute;
+      top: calc(~"50% - 25px");
+      width: @width0;
+    }
+
+    &.lm_toggle_button_down, &.lm_toggle_button_up {
+      height: @height0;
+      position: relative;
+      width: 50px;
+    }
+
+    &.lm_toggle_button_left .lm_toggle_arrow,
+    &.lm_toggle_button_right .lm_toggle_arrow {
+      margin: 21px 0;
+    }
+
+    &.lm_toggle_button_down .lm_toggle_arrow {
+      border-top: 5px solid;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+    }
+
+    &.lm_toggle_button_up .lm_toggle_arrow {
+      border-bottom: 5px solid ;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+    }
+
+    &.lm_toggle_button_left .lm_toggle_arrow {
+      border-right: 5px solid ;
+      border-bottom: 5px solid transparent;
+      border-top: 5px solid transparent;
+    }
+
+    &.lm_toggle_button_right .lm_toggle_arrow {
+      border-left: 5px solid;
+      border-bottom: 5px solid transparent;
+      border-top: 5px solid transparent;
     }
   }
 }
