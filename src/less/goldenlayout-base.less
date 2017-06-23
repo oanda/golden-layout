@@ -51,7 +51,9 @@
 
 // Separator line (handle to change pane size)
 .lm_splitter {
+  line-height: 0;
   position: relative;
+  text-align: center;
   z-index: 20;
 
   &:hover, // When hovered by mouse...
@@ -64,8 +66,8 @@
 
     .lm_drag_handle {
       width: @width0;
-      cursor: ns-resize;
       position: absolute;
+      cursor: ns-resize;
     }
   }
 
@@ -76,8 +78,8 @@
 
     .lm_drag_handle {
       height: @height0;
-      cursor: ew-resize;
       position: absolute;
+      cursor: ew-resize;
     }
   }
 

@@ -1540,7 +1540,8 @@ lm.config.defaultConfig = {
 		responsiveMode: 'onload', // Can be onload, always, or none.
 		tabOverlapAllowance: 0, // maximum pixel overlap per tab
 		reorderOnTabMenuClick: true,
-		tabControlOffset: 10
+		tabControlOffset: 10,
+		enableSplitterToggleButtons: false
 	},
 	dimensions: {
 		borderWidth: 5,
@@ -1560,6 +1561,197 @@ lm.config.defaultConfig = {
 		tabDropdown: 'additional tabs'
 	}
 };
+
+lm.container.ItemContainer = function( config, parent, layoutManager ) {
+	lm.utils.EventEmitter.call( this );
+
+	this.width = null;
+	this.height = null;
+	this.title = config.componentName;
+	this.parent = parent;
+	this.layoutManager = layoutManager;
+	this.isHidden = false;
+
+	this._config = config;
+	this._element = $( [
+		'<div class="lm_item_container">',
+		'<div class="lm_content"></div>',
+		'</div>'
+	].join( '' ) );
+
+	this._contentElement = this._element.find( '.lm_content' );
+};
+
+lm.utils.copy( lm.container.ItemContainer.prototype, {
+
+	/**
+	 * Get the inner DOM element the container's content
+	 * is intended to live in
+	 *
+	 * @returns {DOM element}
+	 */
+	getElement: function() {
+		return this._contentElement;
+	},
+
+	/**
+	 * Hide the container. Notifies the containers content first
+	 * and then hides the DOM node. If the container is already hidden
+	 * this should have no effect
+	 *
+	 * @returns {void}
+	 */
+	hide: function() {
+		this.emit( 'hide' );
+		this.isHidden = true;
+		this._element.hide();
+	},
+
+	/**
+	 * Shows a previously hidden container. Notifies the
+	 * containers content first and then shows the DOM element.
+	 * If the container is already visible this has no effect.
+	 *
+	 * @returns {void}
+	 */
+	show: function() {
+		this.emit( 'show' );
+		this.isHidden = false;
+		this._element.show();
+		// call shown only if the container has a valid size
+		if( this.height != 0 || this.width != 0 ) {
+			this.emit( 'shown' );
+		}
+	},
+
+	/**
+	 * Set the size from within the container. Traverses up
+	 * the item tree until it finds a row or column element
+	 * and resizes its items accordingly.
+	 *
+	 * If this container isn't a descendant of a row or column
+	 * it returns false
+	 * @todo  Rework!!!
+	 * @param {Number} width  The new width in pixel
+	 * @param {Number} height The new height in pixel
+	 *
+	 * @returns {Boolean} resizeSuccesful
+	 */
+	setSize: function( width, height ) {
+		var rowOrColumn = this.parent,
+			rowOrColumnChild = this,
+			totalPixel,
+			percentage,
+			direction,
+			newSize,
+			delta,
+			i;
+
+		while( !rowOrColumn.isColumn && !rowOrColumn.isRow ) {
+			rowOrColumnChild = rowOrColumn;
+			rowOrColumn = rowOrColumn.parent;
+
+
+			/**
+			 * No row or column has been found
+			 */
+			if( rowOrColumn.isRoot ) {
+				return false;
+			}
+		}
+
+		direction = rowOrColumn.isColumn ? "height" : "width";
+		newSize = direction === "height" ? height : width;
+
+		totalPixel = this[ direction ] * ( 1 / ( rowOrColumnChild.config[ direction ] / 100 ) );
+		percentage = ( newSize / totalPixel ) * 100;
+		delta = ( rowOrColumnChild.config[ direction ] - percentage ) / (rowOrColumn.contentItems.length - 1);
+
+		for( i = 0; i < rowOrColumn.contentItems.length; i++ ) {
+			if( rowOrColumn.contentItems[ i ] === rowOrColumnChild ) {
+				rowOrColumn.contentItems[ i ].config[ direction ] = percentage;
+			} else {
+				rowOrColumn.contentItems[ i ].config[ direction ] += delta;
+			}
+		}
+
+		rowOrColumn.callDownwards( 'setSize' );
+
+		return true;
+	},
+
+	/**
+	 * Closes the container if it is closable. Can be called by
+	 * both the component within at as well as the contentItem containing
+	 * it. Emits a close event before the container itself is closed.
+	 *
+	 * @returns {void}
+	 */
+	close: function() {
+		if( this._config.isClosable ) {
+			this.emit( 'close' );
+			this.parent.close();
+		}
+	},
+
+	/**
+	 * Returns the current state object
+	 *
+	 * @returns {Object} state
+	 */
+	getState: function() {
+		return this._config.componentState;
+	},
+
+	/**
+	 * Merges the provided state into the current one
+	 *
+	 * @param   {Object} state
+	 *
+	 * @returns {void}
+	 */
+	extendState: function( state ) {
+		this.setState( $.extend( true, this.getState(), state ) );
+	},
+
+	/**
+	 * Notifies the layout manager of a stateupdate
+	 *
+	 * @param {serialisable} state
+	 */
+	setState: function( state ) {
+		this._config.componentState = state;
+		this.parent.emitBubblingEvent( 'stateChanged' );
+	},
+
+	/**
+	 * Set's the components title
+	 *
+	 * @param {String} title
+	 */
+	setTitle: function( title ) {
+		this.parent.setTitle( title );
+	},
+
+	/**
+	 * Set's the containers size. Called by the container's component.
+	 * To set the size programmatically from within the container please
+	 * use the public setSize method
+	 *
+	 * @param {[Int]} width  in px
+	 * @param {[Int]} height in px
+	 *
+	 * @returns {void}
+	 */
+	_$setSize: function( width, height ) {
+		if( width !== this.width || height !== this.height ) {
+			this.width = width;
+			this.height = height;
+			this._contentElement.width( this.width ).height( this.height );
+			this.emit( 'resize' );
+		}
+	}
+} );
 
 /**
  * Pops a content item out into a new browser window.
@@ -2553,10 +2745,11 @@ lm.utils.copy( lm.controls.HeaderButton.prototype, {
 		this.element.remove();
 	}
 } );
-lm.controls.Splitter = function( isVertical, size, grabSize ) {
+lm.controls.Splitter = function( isVertical, size, grabSize, enableToggleButton ) {
 	this._isVertical = isVertical;
 	this._size = size;
-	this._grabSize = grabSize < size ? size : grabSize;
+	this._grabSize = grabSize < size ? size : grabSize
+	this._enableToggleButton = enableToggleButton;
 
 	this.element = this._createElement();
 	this._dragListener = new lm.utils.DragListener( this.element );
@@ -2589,6 +2782,25 @@ lm.utils.copy( lm.controls.Splitter.prototype, {
 			dragHandle.css( 'width', this._size + handleExcessSize );
 			element.addClass( 'lm_horizontal' );
 			element[ 'width' ]( this._size );
+		}
+
+		if ( this._enableToggleButton ) {
+			var toggleButton = this._createToggleButton( element );
+			element.append(toggleButton);
+		}
+
+		return element;
+	},
+
+	_createToggleButton: function( splitter ) {
+		var element = $( '<div class="lm_toggle_button"></div>');
+		var arrow = $( '<div class="lm_toggle_arrow"></div>' );
+		element.append( arrow );
+
+		if (this._isVertical) {
+			element.addClass( 'lm_toggle_button_down' );
+		} else {
+			element.addClass( 'lm_toggle_button_left' );
 		}
 
 		return element;
@@ -2845,197 +3057,6 @@ lm.utils.copy( lm.controls.TransitionIndicator.prototype, {
 		};
 	}
 } );
-lm.container.ItemContainer = function( config, parent, layoutManager ) {
-	lm.utils.EventEmitter.call( this );
-
-	this.width = null;
-	this.height = null;
-	this.title = config.componentName;
-	this.parent = parent;
-	this.layoutManager = layoutManager;
-	this.isHidden = false;
-
-	this._config = config;
-	this._element = $( [
-		'<div class="lm_item_container">',
-		'<div class="lm_content"></div>',
-		'</div>'
-	].join( '' ) );
-
-	this._contentElement = this._element.find( '.lm_content' );
-};
-
-lm.utils.copy( lm.container.ItemContainer.prototype, {
-
-	/**
-	 * Get the inner DOM element the container's content
-	 * is intended to live in
-	 *
-	 * @returns {DOM element}
-	 */
-	getElement: function() {
-		return this._contentElement;
-	},
-
-	/**
-	 * Hide the container. Notifies the containers content first
-	 * and then hides the DOM node. If the container is already hidden
-	 * this should have no effect
-	 *
-	 * @returns {void}
-	 */
-	hide: function() {
-		this.emit( 'hide' );
-		this.isHidden = true;
-		this._element.hide();
-	},
-
-	/**
-	 * Shows a previously hidden container. Notifies the
-	 * containers content first and then shows the DOM element.
-	 * If the container is already visible this has no effect.
-	 *
-	 * @returns {void}
-	 */
-	show: function() {
-		this.emit( 'show' );
-		this.isHidden = false;
-		this._element.show();
-		// call shown only if the container has a valid size
-		if( this.height != 0 || this.width != 0 ) {
-			this.emit( 'shown' );
-		}
-	},
-
-	/**
-	 * Set the size from within the container. Traverses up
-	 * the item tree until it finds a row or column element
-	 * and resizes its items accordingly.
-	 *
-	 * If this container isn't a descendant of a row or column
-	 * it returns false
-	 * @todo  Rework!!!
-	 * @param {Number} width  The new width in pixel
-	 * @param {Number} height The new height in pixel
-	 *
-	 * @returns {Boolean} resizeSuccesful
-	 */
-	setSize: function( width, height ) {
-		var rowOrColumn = this.parent,
-			rowOrColumnChild = this,
-			totalPixel,
-			percentage,
-			direction,
-			newSize,
-			delta,
-			i;
-
-		while( !rowOrColumn.isColumn && !rowOrColumn.isRow ) {
-			rowOrColumnChild = rowOrColumn;
-			rowOrColumn = rowOrColumn.parent;
-
-
-			/**
-			 * No row or column has been found
-			 */
-			if( rowOrColumn.isRoot ) {
-				return false;
-			}
-		}
-
-		direction = rowOrColumn.isColumn ? "height" : "width";
-		newSize = direction === "height" ? height : width;
-
-		totalPixel = this[ direction ] * ( 1 / ( rowOrColumnChild.config[ direction ] / 100 ) );
-		percentage = ( newSize / totalPixel ) * 100;
-		delta = ( rowOrColumnChild.config[ direction ] - percentage ) / (rowOrColumn.contentItems.length - 1);
-
-		for( i = 0; i < rowOrColumn.contentItems.length; i++ ) {
-			if( rowOrColumn.contentItems[ i ] === rowOrColumnChild ) {
-				rowOrColumn.contentItems[ i ].config[ direction ] = percentage;
-			} else {
-				rowOrColumn.contentItems[ i ].config[ direction ] += delta;
-			}
-		}
-
-		rowOrColumn.callDownwards( 'setSize' );
-
-		return true;
-	},
-
-	/**
-	 * Closes the container if it is closable. Can be called by
-	 * both the component within at as well as the contentItem containing
-	 * it. Emits a close event before the container itself is closed.
-	 *
-	 * @returns {void}
-	 */
-	close: function() {
-		if( this._config.isClosable ) {
-			this.emit( 'close' );
-			this.parent.close();
-		}
-	},
-
-	/**
-	 * Returns the current state object
-	 *
-	 * @returns {Object} state
-	 */
-	getState: function() {
-		return this._config.componentState;
-	},
-
-	/**
-	 * Merges the provided state into the current one
-	 *
-	 * @param   {Object} state
-	 *
-	 * @returns {void}
-	 */
-	extendState: function( state ) {
-		this.setState( $.extend( true, this.getState(), state ) );
-	},
-
-	/**
-	 * Notifies the layout manager of a stateupdate
-	 *
-	 * @param {serialisable} state
-	 */
-	setState: function( state ) {
-		this._config.componentState = state;
-		this.parent.emitBubblingEvent( 'stateChanged' );
-	},
-
-	/**
-	 * Set's the components title
-	 *
-	 * @param {String} title
-	 */
-	setTitle: function( title ) {
-		this.parent.setTitle( title );
-	},
-
-	/**
-	 * Set's the containers size. Called by the container's component.
-	 * To set the size programmatically from within the container please
-	 * use the public setSize method
-	 *
-	 * @param {[Int]} width  in px
-	 * @param {[Int]} height in px
-	 *
-	 * @returns {void}
-	 */
-	_$setSize: function( width, height ) {
-		if( width !== this.width || height !== this.height ) {
-			this.width = width;
-			this.height = height;
-			this._contentElement.width( this.width ).height( this.height );
-			this.emit( 'resize' );
-		}
-	}
-} );
-
 lm.errors.ConfigurationError = function( message, node ) {
 	Error.call( this );
 
