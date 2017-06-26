@@ -3859,6 +3859,7 @@ lm.items.RowOrColumn = function( isColumn, layoutManager, config, parent ) {
 
 	this.isRow = !isColumn;
 	this.isColumn = isColumn;
+	this.isToggled = false;
 
 	this.element = $( '<div class="lm_item lm_' + ( isColumn ? 'column' : 'row' ) + '"></div>' );
 	this.childElementContainer = this.element;
@@ -4370,8 +4371,8 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
  		if ( toggleButton ) {
  			splitter._toggleButton = toggleButton;
 
- 			toggleButton.changeState = function( state ) {
- 				if ( state === 'open' ) {
+ 			toggleButton.toggleState = function() {
+ 				if ( this.isToggled ) {
  					if ( this._isColumn ) {
  						toggleButton.removeClass( 'lm_toggle_button_up' ).addClass( 'lm_toggle_button_down' );
  					}  else {
@@ -4399,37 +4400,38 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		var items = this._getItemsForSplitter( splitter );
 		var target = this._isColumn ? items.after : items.before;
 		var direction = this._isColumn ? 'height' : 'width';
-		var newState = this._splitterPreviousPosition > 0 ? 'open' : 'closed';
 		var height, width;
 
-		if ( newState === 'open' ) {
+		if ( this.isToggled ) {
 			if ( this._isColumn ) {
 				width = target.element.width();
-				height = this._splitterPreviousPosition;
+				height = this._untoggledSize;
 			} else {
-				width = this._splitterPreviousPosition;
+				width = this._untoggledSize;
 				height = target.element.height();
 			}
 
 			this._setChildSize(target, width, height );
-			this._splitterPreviousPosition = 0;
+			this._untoggledSize = 0;
 		} else {
 			if ( this._isColumn ) {
 				width = target.element.width();
 				height = 0;
-				this._splitterPreviousPosition = target.element.height();
+				this._untoggledSize = target.element.height();
 			} else {
 				width = 0;
 				height = target.element.height();
-				this._splitterPreviousPosition = target.element.width();
+				this._untoggledSize = target.element.width();
 			}
 
 			this._setChildSize(target, width, height );
 		}
 
-		splitter._toggleButton.changeState( newState );
+		splitter._toggleButton.toggleState();
 
-		this._toggleItems( target, ( newState === 'open' ? 'show' : 'hide' ) );
+		this._toggleItems( target, ( this.isToggled ? 'show' : 'hide' ) );
+
+		this.isToggled = !this.isToggled;
 	},
 
 	_modifyConfigOfChildren: function( root, action ) {
@@ -4442,11 +4444,15 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	},
 
 	_toggleItems: function( root, action ) {
+		// if ( action === 'show' && ( root.isColumn || root.isRow ) && root.isToggled ) {
+		// 	return;
+		// }
+
 		if ( root[ action ] ) {
 			root[ action ]();
 		}
 
-		if ( root.contentItems.length ) {
+		if ( root.contentItems ) {
 			for ( var i = 0; i < root.contentItems.length; i++ ) {
 				this._toggleItems( root.contentItems[ i ], action );
 			}
@@ -4475,7 +4481,7 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 
 		// Step 1:	find the correct item to add/remove space to to make up for the new size
 		//					the item to add/remove from will be different based on if this is
-		//			  	a column or a row
+		//			  	a row or a column
 		//					row: the last sibling of the row
 		//			  	column: the first sibling of the column
 		var targetIndex;
@@ -4494,13 +4500,13 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		}
 
 		// Step 2:	calculate some values based on current size and desired size
-		direction = this.isColumn ? "height" : "width";
-		newSize = direction === "height" ? height : width;
+		direction = this.isColumn ? 'height' : 'width';
+		newSize = direction === 'height' ? height : width;
 		sizeData = this._calculateAbsoluteSizes();
-		parentSize = direction === 'height' ? sizeData.totalHeight : sizeData.totalWidth;
+		totalSize = direction === 'height' ? sizeData.totalHeight : sizeData.totalWidth;
 		currentSize = sizeData.itemSizes[ targetIndex ];
-		newPercentSize = newSize / parentSize;
-		currentPercentSize = currentSize / parentSize;
+		newPercentSize = newSize / totalSize;
+		currentPercentSize = currentSize / totalSize;
 		delta = currentPercentSize - newPercentSize;
 
 		// Step 3: modify the config of the target item and delta item
@@ -4508,18 +4514,22 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		deltaItem.config[ direction ] += delta * 100;
 
 		// Step 4: reset the min sizes of all items inside the target item
-		//				 note: respect the toggle ID when resetting min sizes
+		//				 TODO: respect the toggle ID when resetting min sizes
 		this._modifyConfigOfChildren( target, function( item ) {
 			var minDirection = direction === 'height' ? 'minHeight' : 'minWidth';
-			if ( item.config[ minDirection ] ) {
+			console.log(item.config[ minDirection ], item.config[ minDirection + 'Original' ] )
+			console.log( item.config.hasOwnProperty( minDirection ) && item.config[ minDirection ] > 0, item.config.hasOwnProperty( minDirection + 'Original' )  )
+			if ( item.config.hasOwnProperty( minDirection ) && item.config[ minDirection ] > 0 ) {
+				// save the original min size in the config so it can be re-added later
 				item.config[ minDirection + 'Original' ] = item.config[ minDirection ];
 				item.config[ minDirection ] = 0;
-			} else {
+			} else if ( item.config.hasOwnProperty( minDirection + 'Original' ) && item.config[ minDirection + 'Original' ] > 0 ) {
 				item.config[ minDirection ] = item.config[ minDirection + 'Original' ];
+				item.config[ minDirection + 'Original' ] = 0;
 			}
 		});
 
-		this.callDownwards( 'setSize' );
+		lm.utils.animFrame( lm.utils.fnBind( this.callDownwards, this, [ 'setSize' ] ) );
 
 		return true;
 	},
@@ -4583,7 +4593,7 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	},
 
 	/**
-	 * Invoked when a splitter's DragListener fires drag. Updates the splitters DOM position,
+	 * Invoked when a splitter's DragListener fires drag. Updates the splitter's DOM position,
 	 * but not the sizes of the elements the splitter controls in order to minimize resize events
 	 *
 	 * @param   {lm.controls.Splitter} splitter
@@ -4626,10 +4636,46 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		} );
 
 		lm.utils.animFrame( lm.utils.fnBind( this.callDownwards, this, [ 'setSize' ] ) );
+
+		if ( this.isToggled ) {
+			lm.utils.animFrame( lm.utils.fnBind(function() {
+				this._resetToggleState( splitter );
+			}, this) );
+		}
+	},
+
+	_resetToggleState: function( splitter ) {
+		var items = this._getItemsForSplitter( splitter );
+
+		this._untoggledSize = 0;
+		splitter._toggleButton.toggleState();
+
+		if ( items.after ) {
+			this._toggleItems( items.after, 'show' );
+		}
+
+		if ( items.before ) {
+			this._toggleItems( items.before, 'show' );
+		}
+
+		this.show();
+
+		if ( items.after ) {
+			this._setChildSize(items.after, items.after.element.width(), items.after.element.height() );
+		}
+
+		if ( items.before ) {
+			this._setChildSize(items.before, items.before.element.width(), items.before.element.height() );
+		}
+
+
+		this.isToggled = false;
 	},
 
 	hide: function() {
 		this.isHidden = true;
+
+		// hide any splitters in this row/column's sub-items
 		for ( var i = 0; i < this._splitter.length; i++ ) {
 			this._splitter[ i ].element.hide();
 		}
@@ -4637,6 +4683,8 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 
 	show: function() {
 		this.isHidden = false;
+
+		// show any splitters in this row/column's sub-items
 		for ( var i = 0; i < this._splitter.length; i++ ) {
 			this._splitter[ i ].element.show();
 		}
