@@ -588,10 +588,6 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 	},
 
 	_toggleItems: function( root, action ) {
-		// if ( action === 'show' && ( root.isColumn || root.isRow ) && root.isToggled ) {
-		// 	return;
-		// }
-
 		if ( root[ action ] ) {
 			root[ action ]();
 		}
@@ -794,6 +790,10 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		this._untoggledSize = 0;
 		splitter._toggleButton.toggleState();
 
+
+		this.show();
+
+
 		if ( items.after ) {
 			this._toggleItems( items.after, 'show' );
 		}
@@ -802,7 +802,8 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 			this._toggleItems( items.before, 'show' );
 		}
 
-		this.show();
+		console.log( items.after, items.after.element.width(), items.after.element.height() )
+		console.log( items.before, items.before.element.width(), items.before.element.height() )
 
 		if ( items.after ) {
 			this._setChildSize(items.after, items.after.element.width(), items.after.element.height() );
